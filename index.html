@@ -9,7 +9,7 @@
     <!-- Google Fonts (Inter) の読み込み -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://css.gg/css?=|spinner" rel="stylesheet">
+    <link href="https://css.gg/css?=|spinner|external|" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', 'Noto Sans JP', sans-serif; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
@@ -38,7 +38,10 @@
                 <h1 class="text-2xl font-bold text-gray-900 tracking-tight">MAU FES NAVI</h1>
                 <p class="text-sm text-gray-500">武蔵美 芸術祭 非公式ナビ</p>
             </div>
-            <!-- 「企画を追加」ボタンはGoogleフォームで行うため削除しました -->
+            <a id="register-event-btn" href="#" target="_blank" rel="noopener noreferrer" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2" style="display: none;">
+                <i class="gg-external"></i>
+                <span>企画を登録する</span>
+            </a>
         </div>
     </header>
 
@@ -96,13 +99,15 @@
 
     <!-- アプリケーションのロジック -->
     <script>
-        // --- ★★★ 重要：ここに設定を貼り付けます ★★★ ---
+        // --- ★★★ 重要：ここに2つのURLを設定します ★★★ ---
         //
-        // Googleスプレッドシートを「Webに公開」して取得したCSVのURLを貼り付けてください。
-        // 詳しい手順は「google_sheets_guide.md」ファイルを参照してください。
+        // 1. GoogleフォームのURL（「回答を送信」画面で取得）
+        const GOOGLE_FORM_URL = ''; // 例: 'https://docs.google.com/forms/d/e/1FAIpQLSc.../viewform'
         //
+        // 2. Googleスプレッドシートの公開URL（CSV形式）
         const SPREADSHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQYi9CwIXHjVgKrJYHWPYK_3_t2VYdssZARonoCe_yYyG_sSqTdu1674uplMVkmXi8Hs1WOFtUFQGJe/pub?gid=317155675&single=true&output=csv'; 
-        // 例: 'https://docs.google.com/spreadsheets/d/e/2PACX-1v.../pub?gid=0&single=true&output=csv'
+        //
+        // 詳しい手順は「google_sheets_guide.md」ファイルを参照してください。
 
         // --- グローバル変数 ---
         let allEvents = []; // スプレッドシートから取得した全イベントを保持
@@ -114,9 +119,16 @@
         const generatePlanBtn = document.getElementById('generate-plan-btn');
         const aiPromptTextarea = document.getElementById('ai-prompt');
         const loadingIndicator = document.getElementById('loading-indicator');
+        const registerEventBtn = document.getElementById('register-event-btn');
 
         // --- 初期化 ---
         async function initialize() {
+            // GoogleフォームのURLが設定されていればボタンを表示
+            if (GOOGLE_FORM_URL) {
+                registerEventBtn.href = GOOGLE_FORM_URL;
+                registerEventBtn.style.display = 'flex';
+            }
+
             if (!SPREADSHEET_URL) {
                 loadingIndicator.innerHTML = `
                     <div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 col-span-full" role="alert">
@@ -145,10 +157,10 @@
                 const headers = rows[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
                 const data = rows.slice(1).map(row => {
                     // カンマがデータに含まれる場合を考慮したCSVパース
-                    const values = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g).map(v => v.trim().replace(/^"|"$/g, ''));
+                    const values = (row.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g) || []).map(v => v.trim().replace(/^"|"$/g, ''));
                     let obj = {};
                     headers.forEach((header, index) => {
-                        obj[header] = values[index];
+                        obj[header] = values[index] || '';
                     });
                     return obj;
                 });
@@ -259,8 +271,28 @@
 
             const systemPrompt = `あなたは武蔵野美術大学の芸術祭に詳しい、フレンドリーで優秀なツアーガイドです。以下のイベントリストとユーザーの希望を参考にして、芸術祭を最高に楽しむためのオリジナルプランを提案してください。# 制約条件\n- プランは、具体的な時間（例：「まず10:00に...」）や回る順番、各企画のおすすめポイントを含めて、楽しく、分かりやすい会話形式で提案してください。\n- イベントリストにない企画は提案しないでください。\n- 親しみやすい口調で、絵文字も適度に使って回答を作成してください。\n- 出力はMarkdown形式で、見出し、箇条書き、太字などを効果的に使って見やすくしてください。`;
             const userQuery = `## イベントリスト:\n${JSON.stringify(allEvents, null, 2)}\n\n## ユーザーの希望:\n${userInput}`;
-            const apiKey = "";
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+            
+            // --- ★★★ APIキーの設定（重要） ★★★ ---
+            //
+            // Vercelなどの外部サイトでAI機能を動作させるには、ご自身のAPIキーが必要です。
+            // 1. Google AI Studio ( https://aistudio.google.com/app/apikey ) にアクセスしてAPIキーを取得します。
+            // 2. 取得したキーを以下の「」の間に貼り付けてください。
+            //
+            // 注意：この方法はAPIキーがソースコードに含まれるため、本番環境では非推奨です。
+            // これは、このプロトタイプを動作させるための最も簡単な方法です。
+            //
+            const GEMINI_API_KEY = "AIzaSyDNjyJv6IN-vnfVFflQvmrUYIfy_I8Ox6Q";
+
+            if (GEMINI_API_KEY === "ここに取得したAPIキーを貼り付け" || !GEMINI_API_KEY) {
+                document.getElementById('ai-result-content').innerHTML = '<p class="text-red-600 font-bold">エラー：APIキーが設定されていません。</p><p>HTMLファイル内の `GEMINI_API_KEY` を設定してください。</p>';
+                showModal('ai-result-modal');
+                btnText.textContent = "プランを生成する";
+                btnSpinner.classList.add('hidden');
+                generatePlanBtn.disabled = false;
+                return;
+            }
+
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`;
             const payload = { contents: [{ parts: [{ text: userQuery }] }], systemInstruction: { parts: [{ text: systemPrompt }] }, };
 
             try {
