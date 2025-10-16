@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MAU FES NAVI - 武蔵美 芸祭ナビ</title>
+    <!-- Tailwind CSSの読み込み -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts (Inter) の読み込み -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://css.gg/css?=|spinner" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', 'Noto Sans JP', sans-serif; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #888; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
+        .gg-spinner { transform: scale(var(--ggs, 1)); }
+        .gg-spinner, .gg-spinner::after, .gg-spinner::before { box-sizing: border-box; position: relative; display: block; width: 20px; height: 20px; }
+        .gg-spinner::after, .gg-spinner::before { content: ''; position: absolute; border-radius: 100px; }
+        .gg-spinner::before { animation: spinner-z-spin 1s cubic-bezier(0.6, 0, 0.4, 1) infinite; border: 3px solid transparent; border-top-color: currentColor; }
+        .gg-spinner::after { border: 3px solid; opacity: 0.2; }
+        @keyframes spinner-z-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        /* モーダルのトランジション */
+        .modal-transition { transition: opacity 0.3s ease, transform 0.3s ease; }
+        .modal-hidden { opacity: 0; transform: scale(0.95); pointer-events: none; }
+        .modal-visible { opacity: 1; transform: scale(1); }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <!-- ヘッダー -->
+    <header class="bg-white shadow-md sticky top-0 z-20">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900 tracking-tight">MAU FES NAVI</h1>
+                <p class="text-sm text-gray-500">武蔵美 芸術祭 非公式ナビ</p>
+            </div>
+            <!-- 「企画を追加」ボタンはGoogleフォームで行うため削除しました -->
+        </div>
+    </header>
+
+    <!-- メインコンテンツ -->
+    <main class="container mx-auto p-4">
+
+        <!-- Gemini API 機能セクション -->
+        <section id="gemini-feature" class="mb-8 bg-white p-6 rounded-lg shadow">
+            <h2 class="text-xl font-bold mb-2">✨ AI おすすめプラン生成</h2>
+            <p class="text-gray-600 mb-4">行ってみたい場所や興味のあることを入力すると、AIがあなただけの芸祭めぐりプランを提案します。</p>
+            <textarea id="ai-prompt" class="w-full border border-gray-300 rounded-md p-2 h-24 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition" placeholder="例：雑貨を見るのが好きです。美味しいコーヒーも飲みたい！3時間くらいで楽しむプランを教えて。"></textarea>
+            <button id="generate-plan-btn" class="mt-4 w-full bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-bold py-3 px-4 rounded-lg hover:from-purple-600 hover:to-indigo-700 transition-all duration-300 transform hover:scale-105 flex items-center justify-center">
+                <span id="btn-text">プランを生成する</span>
+                <i id="btn-spinner" class="gg-spinner hidden ml-2"></i>
+            </button>
+        </section>
+
+        <!-- フィルターセクション -->
+        <section id="filters" class="mb-6">
+            <h2 class="text-lg font-semibold mb-3">カテゴリで探す</h2>
+            <div class="flex flex-wrap gap-2">
+                <button onclick="filterEvents('all')" class="filter-btn active bg-indigo-600 text-white px-4 py-2 rounded-full text-sm font-semibold shadow">すべて</button>
+                <button onclick="filterEvents('展示')" class="filter-btn bg-white text-gray-800 px-4 py-2 rounded-full text-sm font-semibold shadow">🎨 展示</button>
+                <button onclick="filterEvents('物販')" class="filter-btn bg-white text-gray-800 px-4 py-2 rounded-full text-sm font-semibold shadow">🛍️ 物販</button>
+                <button onclick="filterEvents('飲食')" class="filter-btn bg-white text-gray-800 px-4 py-2 rounded-full text-sm font-semibold shadow">🍔 飲食</button>
+                <button onclick="filterEvents('映像・パフォーマンス')" class="filter-btn bg-white text-gray-800 px-4 py-2 rounded-full text-sm font-semibold shadow">🎬 映像・パフォーマンス</button>
+                <button onclick="filterEvents('ワークショップ')" class="filter-btn bg-white text-gray-800 px-4 py-2 rounded-full text-sm font-semibold shadow">✋ ワークショップ</button>
+            </div>
+        </section>
+
+        <!-- 企画一覧セクション -->
+        <section id="event-list">
+            <div id="event-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                 <!-- スプレッドシートから取得したデータがここに挿入されます -->
+                 <p id="loading-indicator" class="text-center text-gray-500 col-span-full">データを読み込んでいます...</p>
+            </div>
+            <div id="no-results" class="hidden text-center py-10 col-span-full">
+                <p class="text-gray-500">該当する企画が見つかりませんでした。</p>
+            </div>
+        </section>
+    </main>
+    
+    <!-- モーダル -->
+    <div id="modal-backdrop" class="fixed inset-0 bg-black bg-opacity-50 z-30 modal-transition modal-hidden"></div>
+    <!-- AI提案結果表示用モーダル -->
+    <div id="ai-result-modal" class="fixed inset-0 flex items-center justify-center p-4 z-40 modal-transition modal-hidden">
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center p-4 border-b">
+                <h3 class="text-lg font-bold">✨ AIからの提案プラン</h3>
+                <button onclick="closeModal('ai-result-modal')" class="text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
+            </div>
+            <div id="ai-result-content" class="p-6 overflow-y-auto"></div>
+        </div>
+    </div>
+
+    <!-- アプリケーションのロジック -->
+    <script>
+        // --- ★★★ 重要：ここに設定を貼り付けます ★★★ ---
+        //
+        // Googleスプレッドシートを「Webに公開」して取得したCSVのURLを貼り付けてください。
+        // 詳しい手順は「google_sheets_guide.md」ファイルを参照してください。
+        //
+        const SPREADSHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQYi9CwIXHjVgKrJYHWPYK_3_t2VYdssZARonoCe_yYyG_sSqTdu1674uplMVkmXi8Hs1WOFtUFQGJe/pub?gid=317155675&single=true&output=csv'; 
+        // 例: 'https://docs.google.com/spreadsheets/d/e/2PACX-1v.../pub?gid=0&single=true&output=csv'
+
+        // --- グローバル変数 ---
+        let allEvents = []; // スプレッドシートから取得した全イベントを保持
+
+        // --- DOM要素の取得 ---
+        const eventGrid = document.getElementById('event-grid');
+        const noResults = document.getElementById('no-results');
+        const filterButtons = document.querySelectorAll('.filter-btn');
+        const generatePlanBtn = document.getElementById('generate-plan-btn');
+        const aiPromptTextarea = document.getElementById('ai-prompt');
+        const loadingIndicator = document.getElementById('loading-indicator');
+
+        // --- 初期化 ---
+        async function initialize() {
+            if (!SPREADSHEET_URL) {
+                loadingIndicator.innerHTML = `
+                    <div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 col-span-full" role="alert">
+                        <p class="font-bold">設定が必要です</p>
+                        <p>GoogleスプレッドシートのURLを、このHTMLファイル内の <code>SPREADSHEET_URL</code> に設定してください。</p>
+                    </div>
+                `;
+                return;
+            }
+            await loadEventsFromSheet();
+        }
+        
+        // --- スプレッドシートからデータを読み込む ---
+        async function loadEventsFromSheet() {
+            try {
+                // Google SheetsはCSVをキャッシュするため、ユニークなクエリパラメータを追加して強制的に最新版を取得する
+                const url = new URL(SPREADSHEET_URL);
+                url.searchParams.set('cache_bust', new Date().getTime());
+        
+                const response = await fetch(url);
+                if (!response.ok) throw new Error('Network response was not ok.');
+                const csvText = await response.text();
+                
+                // CSVをパースしてJSONに変換
+                const rows = csvText.trim().split(/\r?\n/);
+                const headers = rows[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+                const data = rows.slice(1).map(row => {
+                    // カンマがデータに含まれる場合を考慮したCSVパース
+                    const values = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g).map(v => v.trim().replace(/^"|"$/g, ''));
+                    let obj = {};
+                    headers.forEach((header, index) => {
+                        obj[header] = values[index];
+                    });
+                    return obj;
+                });
+
+                allEvents = data;
+                loadingIndicator.style.display = 'none';
+                filterEvents('all'); // データを取得したら全件表示
+
+            } catch (error) {
+                console.error("スプレッドシートの読み込みに失敗しました:", error);
+                 loadingIndicator.innerHTML = `
+                    <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 col-span-full" role="alert">
+                        <p class="font-bold">データ取得エラー</p>
+                        <p>スプレッドシートのURLが正しいか、またはWebに正しく公開されているか確認してください。</p>
+                    </div>
+                `;
+            }
+        }
+
+
+        // --- 企画カードの描画 ---
+        window.renderEvents = function(eventsToRender) {
+            eventGrid.innerHTML = '';
+            noResults.classList.toggle('hidden', eventsToRender.length > 0);
+             if (eventsToRender.length === 0 && allEvents.length > 0) {
+                 eventGrid.innerHTML = `<div id="no-results" class="text-center py-10 col-span-full"><p class="text-gray-500">該当する企画が見つかりませんでした。</p></div>`;
+            }
+
+            eventsToRender.forEach(event => {
+                // スプレッドシートのヘッダー名に合わせてプロパティを参照
+                const title = event.title || 'タイトルなし';
+                const department = event.department || '学科・団体名なし';
+                const category = event.category || 'カテゴリなし';
+                const description = event.description || '説明なし';
+                const location = event.location || '場所未定';
+
+                const imageUrl = `https://placehold.co/600x400/7c3aed/ffffff?text=${encodeURIComponent(category)}`;
+                const card = `
+                    <div class="bg-white rounded-lg shadow-md overflow-hidden transform hover:-translate-y-1 transition-transform duration-300">
+                        <img src="${imageUrl}" alt="${title}" class="w-full h-40 object-cover">
+                        <div class="p-5">
+                            <h3 class="text-xl font-bold mb-1">${title}</h3>
+                            <p class="text-sm text-indigo-600 font-semibold mb-2">${department}</p>
+                            <span class="inline-block bg-gray-200 rounded-full px-3 py-1 text-sm font-semibold text-gray-700 mr-2 mb-2">${category}</span>
+                            <p class="text-gray-600 text-base mt-2">${description}</p>
+                            <div class="mt-4 text-sm text-gray-500 font-medium">📍 ${location}</div>
+                        </div>
+                    </div>
+                `;
+                eventGrid.innerHTML += card;
+            });
+        }
+
+        // --- 企画のフィルタリング ---
+        window.filterEvents = function(category) {
+            const filteredEvents = category === 'all' ? allEvents : allEvents.filter(event => event.category === category);
+            renderEvents(filteredEvents);
+
+            filterButtons.forEach(button => {
+                const buttonCategoryText = button.textContent.trim();
+                const buttonCategory = buttonCategoryText.split(' ')[1] || 'すべて';
+                
+                let isActive = false;
+                if (category === 'all' && buttonCategory === 'すべて') {
+                    isActive = true;
+                } else if (category === buttonCategory) {
+                    isActive = true;
+                }
+                
+                button.classList.toggle('active', isActive);
+                button.classList.toggle('bg-indigo-600', isActive);
+                button.classList.toggle('text-white', isActive);
+                button.classList.toggle('bg-white', !isActive);
+                button.classList.toggle('text-gray-800', !isActive);
+            });
+        }
+        
+        // --- モーダル制御 ---
+        const modalBackdrop = document.getElementById('modal-backdrop');
+        window.showModal = function(modalId) {
+            const modal = document.getElementById(modalId);
+            modalBackdrop.classList.remove('modal-hidden');
+            modal.classList.remove('modal-hidden');
+        }
+        window.closeModal = function(modalId) {
+             const modal = document.getElementById(modalId);
+            modalBackdrop.classList.add('modal-hidden');
+            if (modal) {
+               modal.classList.add('modal-hidden');
+            }
+        }
+        
+        modalBackdrop.addEventListener('click', () => {
+             closeModal('ai-result-modal');
+        });
+
+        // --- Gemini API 呼び出し ---
+        async function generatePlan() {
+            const userInput = aiPromptTextarea.value.trim();
+            if (!userInput) { alert("希望や興味のあることを入力してください。"); return; }
+            if (allEvents.length === 0) { alert("まだ企画がありません。プランを生成できません。"); return; }
+
+            const btnText = document.getElementById('btn-text');
+            const btnSpinner = document.getElementById('btn-spinner');
+            btnText.textContent = "考え中...";
+            btnSpinner.classList.remove('hidden');
+            generatePlanBtn.disabled = true;
+
+            const systemPrompt = `あなたは武蔵野美術大学の芸術祭に詳しい、フレンドリーで優秀なツアーガイドです。以下のイベントリストとユーザーの希望を参考にして、芸術祭を最高に楽しむためのオリジナルプランを提案してください。# 制約条件\n- プランは、具体的な時間（例：「まず10:00に...」）や回る順番、各企画のおすすめポイントを含めて、楽しく、分かりやすい会話形式で提案してください。\n- イベントリストにない企画は提案しないでください。\n- 親しみやすい口調で、絵文字も適度に使って回答を作成してください。\n- 出力はMarkdown形式で、見出し、箇条書き、太字などを効果的に使って見やすくしてください。`;
+            const userQuery = `## イベントリスト:\n${JSON.stringify(allEvents, null, 2)}\n\n## ユーザーの希望:\n${userInput}`;
+            const apiKey = "";
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+            const payload = { contents: [{ parts: [{ text: userQuery }] }], systemInstruction: { parts: [{ text: systemPrompt }] }, };
+
+            try {
+                const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                if (!response.ok) throw new Error(`API Error: ${response.status}`);
+                const result = await response.json();
+                const candidate = result.candidates?.[0];
+                if (candidate && candidate.content?.parts?.[0]?.text) {
+                    let generatedText = candidate.content.parts[0].text;
+                    generatedText = generatedText.replace(/## (.*)/g, '<h3 class="text-lg font-bold mt-4 mb-2">$1</h3>').replace(/\* \*(.*)\*\*/g, '<strong>$1</strong>').replace(/\* (.*)/g, '<li class="ml-5 list-disc">$1</li>').replace(/(\r\n|\n|\r)/g, '<br>');
+                    document.getElementById('ai-result-content').innerHTML = generatedText;
+                    showModal('ai-result-modal');
+                } else { throw new Error("No content from AI."); }
+            } catch (error) {
+                console.error("Gemini API call failed:", error);
+                document.getElementById('ai-result-content').textContent = "プランの生成中にエラーが発生しました。";
+                showModal('ai-result-modal');
+            } finally {
+                btnText.textContent = "プランを生成する";
+                btnSpinner.classList.add('hidden');
+                generatePlanBtn.disabled = false;
+            }
+        }
+        generatePlanBtn.addEventListener('click', generatePlan);
+
+        // --- アプリケーションの開始 ---
+        initialize();
+
+    </script>
+</body>
+</html>
+
