@@ -109,6 +109,16 @@
         //
         // 詳しい手順は「google_sheets_guide.md」ファイルを参照してください。
 
+        // --- カテゴリ別サムネイル画像 ---
+        const categoryImages = {
+            '展示': 'https://i.imgur.com/sZ20Lq2.jpeg',
+            '物販': 'https://i.imgur.com/0dJ3VzS.jpeg',
+            '飲食': 'https://i.imgur.com/uT25a2W.jpeg',
+            '映像・パフォーマンス': 'https://i.imgur.com/6yE3h4I.jpeg',
+            'ワークショップ': 'https://i.imgur.com/g0S4aGk.jpeg',
+            'default': 'https://i.imgur.com/6yE3h4I.jpeg' // カテゴリが見つからない場合の画像
+        };
+
         // --- グローバル変数 ---
         let allEvents = []; // スプレッドシートから取得した全イベントを保持
 
@@ -196,17 +206,30 @@
                 const category = event.category || 'カテゴリなし';
                 const description = event.description || '説明なし';
                 const location = event.location || '場所未定';
+                const url = event.url; // ★★★ 新しくURLを取得 ★★★
 
-                const imageUrl = `https://placehold.co/600x400/7c3aed/ffffff?text=${encodeURIComponent(category)}`;
+                const imageUrl = categoryImages[category] || categoryImages['default'];
+
+                // ★★★ URLがあればリンクボタンを生成 ★★★
+                const detailsLink = url ? `
+                    <div class="mt-4 pt-4 border-t border-gray-200">
+                        <a href="${url}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 text-indigo-600 hover:text-indigo-800 font-semibold text-sm group">
+                            <span>詳細はこちら</span>
+                            <span class="transform transition-transform duration-200 group-hover:translate-x-1">&rarr;</span>
+                        </a>
+                    </div>
+                ` : '';
+
                 const card = `
-                    <div class="bg-white rounded-lg shadow-md overflow-hidden transform hover:-translate-y-1 transition-transform duration-300">
+                    <div class="bg-white rounded-lg shadow-md overflow-hidden flex flex-col">
                         <img src="${imageUrl}" alt="${title}" class="w-full h-40 object-cover">
-                        <div class="p-5">
+                        <div class="p-5 flex flex-col flex-grow">
                             <h3 class="text-xl font-bold mb-1">${title}</h3>
                             <p class="text-sm text-indigo-600 font-semibold mb-2">${department}</p>
-                            <span class="inline-block bg-gray-200 rounded-full px-3 py-1 text-sm font-semibold text-gray-700 mr-2 mb-2">${category}</span>
-                            <p class="text-gray-600 text-base mt-2">${description}</p>
+                            <span class="inline-block bg-gray-200 rounded-full px-3 py-1 text-sm font-semibold text-gray-700 mr-2 mb-2 self-start">${category}</span>
+                            <p class="text-gray-600 text-base mt-2 flex-grow">${description}</p>
                             <div class="mt-4 text-sm text-gray-500 font-medium">📍 ${location}</div>
+                            ${detailsLink}
                         </div>
                     </div>
                 `;
@@ -277,9 +300,6 @@
             // Vercelなどの外部サイトでAI機能を動作させるには、ご自身のAPIキーが必要です。
             // 1. Google AI Studio ( https://aistudio.google.com/app/apikey ) にアクセスしてAPIキーを取得します。
             // 2. 取得したキーを以下の「」の間に貼り付けてください。
-            //
-            // 注意：この方法はAPIキーがソースコードに含まれるため、本番環境では非推奨です。
-            // これは、このプロトタイプを動作させるための最も簡単な方法です。
             //
             const GEMINI_API_KEY = "AIzaSyDNjyJv6IN-vnfVFflQvmrUYIfy_I8Ox6Q";
 
