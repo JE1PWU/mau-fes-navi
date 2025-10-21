@@ -327,6 +327,7 @@
         });
 
         // --- Gemini API 呼び出し ---
+        let statusInterval; // ★★★ ステータス更新用の変数を追加
         async function generatePlan() {
             const userInput = aiPromptTextarea.value.trim();
             if (!userInput) { alert("希望や興味のあることを入力してください。"); return; }
@@ -334,9 +335,17 @@
 
             const btnText = document.getElementById('btn-text');
             const btnSpinner = document.getElementById('btn-spinner');
-            btnText.textContent = "考え中...";
-            btnSpinner.classList.remove('hidden');
             generatePlanBtn.disabled = true;
+            btnSpinner.classList.remove('hidden');
+
+            // ★★★ ステータスメッセージを順番に表示する処理を追加 ★★★
+            const statusMessages = ["AIが思考中...", "情報を検索しています...", "プランを最適化中...", "もうすぐ完成です..."];
+            let messageIndex = 0;
+            btnText.textContent = statusMessages[messageIndex];
+            statusInterval = setInterval(() => {
+                messageIndex = (messageIndex + 1) % statusMessages.length;
+                btnText.textContent = statusMessages[messageIndex];
+            }, 2500); // 2.5秒ごとにメッセージを切り替え
 
             const systemPrompt = `あなたは武蔵野美術大学の芸術祭に詳しい、フレンドリーで優秀なツアーガイドです。以下のイベントリストとユーザーの希望を参考にして、芸術祭を最高に楽しむためのオリジナルプランを提案してください。# 制約条件\n- プランは、具体的な時間（例：「まず10:00に...」）や回る順番、各企画のおすすめポイントを含めて、楽しく、分かりやすい会話形式で提案してください。\n- イベントリストにない企画は提案しないでください。\n- 親しみやすい口調で、絵文字も適度に使って回答を作成してください。\n- 出力はMarkdown形式で、見出し、箇条書き、太字などを効果的に使って見やすくしてください。\n- **与えられたイベントリストの情報が不十分な場合は、企画名やURLをヒントにWeb検索を行い、より詳細で魅力的な情報を補って提案してください。**`;
             const userQuery = `## イベントリスト:\n${JSON.stringify(allEvents, null, 2)}\n\n## ユーザーの希望:\n${userInput}`;
@@ -346,6 +355,7 @@
             if (GEMINI_API_KEY === "ここに取得したAPIキーを貼り付け" || !GEMINI_API_KEY) {
                 document.getElementById('ai-result-content').innerHTML = '<p class="text-red-600 font-bold">エラー：APIキーが設定されていません。</p><p>HTMLファイル内の `GEMINI_API_KEY` を設定してください。</p>';
                 showModal('ai-result-modal');
+                clearInterval(statusInterval); // ★★★ エラー時もインターバルを停止
                 btnText.textContent = "プランを生成する";
                 btnSpinner.classList.add('hidden');
                 generatePlanBtn.disabled = false;
@@ -354,7 +364,6 @@
 
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`;
             
-            // ★★★ AIに「Google検索」ツールを追加 ★★★
             const payload = { 
                 contents: [{ parts: [{ text: userQuery }] }], 
                 systemInstruction: { parts: [{ text: systemPrompt }] },
@@ -394,6 +403,8 @@
                 document.getElementById('ai-result-content').innerHTML = `<p class="text-red-600 font-bold">プランの生成中にエラーが発生しました。</p><p class="mt-2 text-sm text-gray-600">${error.message}</p>`;
                 showModal('ai-result-modal');
             } finally {
+                // ★★★ 処理完了後に必ずインターバルを停止し、ボタンの表示を元に戻す ★★★
+                clearInterval(statusInterval);
                 btnText.textContent = "プランを生成する";
                 btnSpinner.classList.add('hidden');
                 generatePlanBtn.disabled = false;
