@@ -150,11 +150,58 @@
             }
             await loadEventsFromSheet();
         }
+
+        // --- ★★★ 堅牢なCSVパーサー ★★★ ---
+        // セル内の改行やカンマを正しく処理します
+        function parseCsv(csvText) {
+            const rows = [];
+            let currentRow = [];
+            let currentField = '';
+            let inQuotedField = false;
+
+            for (let i = 0; i < csvText.length; i++) {
+                const char = csvText[i];
+                
+                if (inQuotedField) {
+                    if (char === '"') {
+                        if (i + 1 < csvText.length && csvText[i + 1] === '"') {
+                            currentField += '"';
+                            i++;
+                        } else {
+                            inQuotedField = false;
+                        }
+                    } else {
+                        currentField += char;
+                    }
+                } else {
+                    if (char === '"') {
+                        inQuotedField = true;
+                    } else if (char === ',') {
+                        currentRow.push(currentField);
+                        currentField = '';
+                    } else if (char === '\n' || char === '\r') {
+                        currentRow.push(currentField);
+                        rows.push(currentRow);
+                        currentRow = [];
+                        currentField = '';
+                        if (char === '\r' && i + 1 < csvText.length && csvText[i + 1] === '\n') {
+                            i++; 
+                        }
+                    } else {
+                        currentField += char;
+                    }
+                }
+            }
+            if (currentField || currentRow.length > 0) {
+                currentRow.push(currentField);
+                rows.push(currentRow);
+            }
+            return rows;
+        }
         
         // --- スプレッドシートからデータを読み込む ---
         async function loadEventsFromSheet() {
             try {
-                // Google SheetsはCSVをキャッシュするため、ユニークなクエリパラメータを追加して強制的に最新版を取得する
                 const url = new URL(SPREADSHEET_URL);
                 url.searchParams.set('cache_bust', new Date().getTime());
         
@@ -162,21 +209,24 @@
                 if (!response.ok) throw new Error('Network response was not ok.');
                 const csvText = await response.text();
                 
-                // CSVをパースしてJSONに変換（説明文にカンマが含まれても対応できるように改善）
-                const rows = csvText.trim().split(/\r?\n/);
-                const headers = rows[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
-                const data = rows.slice(1).map(row => {
-                    const values = (row.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g) || []).map(v => v.trim().replace(/^"|"$/g, ''));
-                    let obj = {};
-                    headers.forEach((header, index) => {
-                        obj[header] = values[index] || '';
+                // 新しいパーサーを使用
+                const parsedRows = parseCsv(csvText.trim());
+                if (parsedRows.length < 2) {
+                    allEvents = [];
+                } else {
+                    const headers = parsedRows[0].map(h => h.trim());
+                    const data = parsedRows.slice(1).map(row => {
+                        let obj = {};
+                        headers.forEach((header, index) => {
+                            obj[header] = row[index] || '';
+                        });
+                        return obj;
                     });
-                    return obj;
-                });
+                    allEvents = data.filter(event => event.title);
+                }
 
-                allEvents = data.filter(event => event.title); // タイトルが空の行は無視する
                 loadingIndicator.style.display = 'none';
-                filterEvents('all'); // データを取得したら全件表示
+                filterEvents('all');
 
             } catch (error) {
                 console.error("スプレッドシートの読み込みに失敗しました:", error);
@@ -199,15 +249,15 @@
             }
 
             eventsToRender.forEach(event => {
-                // スプレッドシートのヘッダー名に合わせてプロパティを参照
                 const title = event.title || 'タイトルなし';
                 const department = event.department || '学科・団体名なし';
-                const category = event.category || 'カテゴリなし';
+                const categoryString = event.category || 'カテゴリなし';
                 const description = event.description || '説明なし';
                 const location = event.location || '場所未定';
-                const url = event.url; 
-
-                const colorClasses = categoryColors[category] || categoryColors['default'];
+                const url = event.url && event.url.startsWith('http') ? event.url : null;
+                
+                const firstCategory = categoryString.split(/[,・/\s]/)[0];
+                const colorClasses = categoryColors[firstCategory] || categoryColors['default'];
 
                 const detailsLink = url ? `
                     <div class="mt-4 pt-4 border-t border-gray-300">
@@ -220,11 +270,11 @@
                 const card = `
                     <div class="rounded-lg shadow-md flex flex-col border ${colorClasses} transform hover:-translate-y-1 transition-transform duration-300">
                         <div class="p-5 flex flex-col flex-grow">
-                            <h3 class="text-xl font-bold mb-1 text-gray-900">${title}</h3>
-                            <p class="text-sm text-indigo-700 font-semibold mb-2">${department}</p>
-                            <span class="inline-block bg-white bg-opacity-70 rounded-full px-3 py-1 text-sm font-semibold text-gray-700 mr-2 mb-2 self-start">${category}</span>
-                            <p class="text-gray-700 text-base mt-2 flex-grow">${description}</p>
-                            <div class="mt-4 text-sm text-gray-600 font-medium">📍 ${location}</div>
+                            <h3 class="text-xl font-bold mb-1 text-gray-900 break-words">${title}</h3>
+                            <p class="text-sm text-indigo-700 font-semibold mb-2 break-words">${department}</p>
+                            <span class="inline-block bg-white bg-opacity-70 rounded-full px-3 py-1 text-sm font-semibold text-gray-700 mr-2 mb-2 self-start">${categoryString}</span>
+                            <p class="text-gray-700 text-base mt-2 flex-grow break-words">${description}</p>
+                            <div class="mt-4 text-sm text-gray-600 font-medium break-words">📍 ${location}</div>
                             ${detailsLink}
                         </div>
                     </div>
@@ -235,7 +285,9 @@
 
         // --- 企画のフィルタリング ---
         window.filterEvents = function(category) {
-            const filteredEvents = category === 'all' ? allEvents : allEvents.filter(event => event.category === category);
+            const filteredEvents = category === 'all' 
+                ? allEvents 
+                : allEvents.filter(event => event.category && event.category.includes(category));
             renderEvents(filteredEvents);
 
             filterButtons.forEach(button => {
