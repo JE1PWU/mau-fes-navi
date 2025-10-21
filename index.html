@@ -151,8 +151,7 @@
             await loadEventsFromSheet();
         }
 
-        // --- ★★★ 堅牢なCSVパーサー ★★★ ---
-        // セル内の改行やカンマを正しく処理します
+        // --- 堅牢なCSVパーサー ---
         function parseCsv(csvText) {
             const rows = [];
             let currentRow = [];
@@ -209,7 +208,6 @@
                 if (!response.ok) throw new Error('Network response was not ok.');
                 const csvText = await response.text();
                 
-                // 新しいパーサーを使用
                 const parsedRows = parseCsv(csvText.trim());
                 if (parsedRows.length < 2) {
                     allEvents = [];
@@ -340,7 +338,7 @@
             btnSpinner.classList.remove('hidden');
             generatePlanBtn.disabled = true;
 
-            const systemPrompt = `あなたは武蔵野美術大学の芸術祭に詳しい、フレンドリーで優秀なツアーガイドです。以下のイベントリストとユーザーの希望を参考にして、芸術祭を最高に楽しむためのオリジナルプランを提案してください。# 制約条件\n- プランは、具体的な時間（例：「まず10:00に...」）や回る順番、各企画のおすすめポイントを含めて、楽しく、分かりやすい会話形式で提案してください。\n- イベントリストにない企画は提案しないでください。\n- 親しみやすい口調で、絵文字も適度に使って回答を作成してください。\n- 出力はMarkdown形式で、見出し、箇条書き、太字などを効果的に使って見やすくしてください。`;
+            const systemPrompt = `あなたは武蔵野美術大学の芸術祭に詳しい、フレンドリーで優秀なツアーガイドです。以下のイベントリストとユーザーの希望を参考にして、芸術祭を最高に楽しむためのオリジナルプランを提案してください。# 制約条件\n- プランは、具体的な時間（例：「まず10:00に...」）や回る順番、各企画のおすすめポイントを含めて、楽しく、分かりやすい会話形式で提案してください。\n- イベントリストにない企画は提案しないでください。\n- 親しみやすい口調で、絵文字も適度に使って回答を作成してください。\n- 出力はMarkdown形式で、見出し、箇条書き、太字などを効果的に使って見やすくしてください。\n- **与えられたイベントリストの情報が不十分な場合は、企画名やURLをヒントにWeb検索を行い、より詳細で魅力的な情報を補って提案してください。**`;
             const userQuery = `## イベントリスト:\n${JSON.stringify(allEvents, null, 2)}\n\n## ユーザーの希望:\n${userInput}`;
             
             const GEMINI_API_KEY = "AIzaSyDNjyJv6IN-vnfVFflQvmrUYIfy_I8Ox6Q";
@@ -355,7 +353,13 @@
             }
 
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`;
-            const payload = { contents: [{ parts: [{ text: userQuery }] }], systemInstruction: { parts: [{ text: systemPrompt }] }, };
+            
+            // ★★★ AIに「Google検索」ツールを追加 ★★★
+            const payload = { 
+                contents: [{ parts: [{ text: userQuery }] }], 
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                tools: [{ "google_search": {} }] 
+            };
 
             try {
                 const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
